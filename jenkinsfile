@@ -44,7 +44,7 @@ pipeline {
             steps{
                 script{
                     sh """
-                    docker tag blue-green:${params.APP_VERSION} mohan14242/blue-green:${params.APP_VERSION}"""
+                    docker tag blue-green:${params.APP_VERSION} docker.io/mohan14242/blue-green:${params.APP_VERSION}"""
                 }
             }
         }
@@ -52,10 +52,9 @@ pipeline {
             steps {
                 script {
                     // Push the Docker image to Docker registry
-                    dir('source') {
-                        docker.withRegistry('https://registry.hub.docker.com', 'docker_credentials') {  
+                    docker.withRegistry('https://registry.hub.docker.com', 'docker_credentials') {  
                             docker.image("mohan14242/blue-green:${params.APP_VERSION}").push()
-                        }
+                        
                     }
                 }
             }
