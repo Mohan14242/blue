@@ -46,7 +46,7 @@ pipeline {
                     // Push the Docker image to Docker registry
                     dir('source') {
                         docker.withRegistry('https://registry.hub.docker.com', 'docker_credentials') {  
-                            docker.image("mohan14242/mohan:4.0").push()
+                            docker.image("mohan14242/blue-green:${params.APP_VERSION}").push()
                         }
                     }
                 }
