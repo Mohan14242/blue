@@ -8,6 +8,8 @@ pipeline {
     }
     environment {
         APP_VERSION = ""
+        KUBE_NAMESPACE = 'dev'  // Set Kubernetes namespace if not already defined
+        KUBE_SERVER_URL = 'https://DDA40494B0CB1765ACFA939C48DE4F1E.sk1.us-east-1.eks.amazonaws.com'  // Your EKS server URL
     }
     stages {
         stage('Clean Workspace') {
@@ -23,7 +25,7 @@ pipeline {
                         // Clean up the directory if it already exists
                         sh 'rm -rf .'
                         // Clone the repository from GitHub
-                        git branch: 'main', url: "https://github.com/mohansourcecode/python1.git"
+                        git branch: 'main', url: "https://github.com/Mohan14242/blue.git"
                     }
                 }
             }
@@ -48,51 +50,52 @@ pipeline {
                 }
             }
         }
-        // stage('Trivy Scan') {
-        //     steps {
-        //         script {
-        //             // Perform Trivy scan on the source code inside 'source' directory
-        //             dir('source') {
-        //                 sh 'trivy fs . > trivy.txt'
-        //             }
-        //         }
-        //     }
-        // }
         stage('Docker Build') {
             steps {
                 script {
                     // Build the Docker image inside the 'source' directory
                     dir('source') {
                         sh """
-                        docker build -t your-image-name:${env.APP_VERSION} .
+                        docker build -t blue-green:${env.APP_VERSION} .
                         """
                     }
                 }
             }
         }
-        // stage("perform the trivy image scanning "){
-        //     steps{
-        //         sh'trivy image mohan:4.0 > trivyimage.txt'
-        //     }
-        // }
-        stage('Deploy to Blue Environment') {
+        stage('Push Docker Image') {
             steps {
                 script {
-                    if (params.ENVIRONMENT == 'blue') {
-                        echo "Deploying to Blue Environment with version ${params.APP_VERSION}"
-                        // Deploy to Blue (assuming Blue is the current version)
-                        sh 'kubectl apply -f blue-deployment.yaml -n ${KUBE_NAMESPACE}'
+                    docker.withRegistry('https://registry.hub.docker.com', 'docker_credentials') {  
+                        docker.image("mohan14242/mohan:4.0").push()
                     }
                 }
             }
         }
-        stage('Deploy to Green Environment') {
+        stage('Deploy to Kubernetes') {
             steps {
                 script {
-                    if (params.ENVIRONMENT == 'green') {
-                        echo "Deploying to Green Environment with version ${params.APP_VERSION}"
-                        // Deploy to Green (new version)
-                        sh 'kubectl apply -f green-deployment.yaml -n ${KUBE_NAMESPACE}'
+                    // Use withKubeConfig to perform Kubernetes actions
+                    withKubeConfig(
+                        caCertificate: '',  // Specify the CA certificate if needed
+                        clusterName: 'eks-spot-cluster',  // The name of your EKS cluster
+                        contextName: '',  // Optionally specify a Kubernetes context name
+                        credentialsId: 'k8-token',  // ID of the Kubernetes credentials stored in Jenkins
+                        namespace: KUBE_NAMESPACE,  // Set namespace for Kubernetes resources
+                        restrictKubeConfigAccess: false,  // Set to false to allow unrestricted access
+                        serverUrl: KUBE_SERVER_URL  // Kubernetes server URL (EKS endpoint)
+                    ) {
+                        // Deploy to Blue or Green environment based on the user's choice
+                        if (params.ENVIRONMENT == 'blue') {
+                            echo "Deploying to Blue Environment with version ${params.APP_VERSION}"
+                            // Deploy to Blue (assuming Blue is the current version)
+                            sh 'kubectl apply -f blue-deployment.yml -n ${KUBE_NAMESPACE}'
+                            sh 'kubectl apply -f loadbalancer.yml -n ${KUBE_NAMESPACE}'
+                        } else if (params.ENVIRONMENT == 'green') {
+                            echo "Deploying to Green Environment with version ${params.APP_VERSION}"
+                            // Deploy to Green (new version)
+                            sh 'kubectl apply -f green-deployment.yml -n ${KUBE_NAMESPACE}'
+                            sh 'kubectl apply -f node-port.yaml -n ${KUBE_NAMESPACE}'
+                        }
                     }
                 }
             }
@@ -116,9 +119,20 @@ pipeline {
             }
             steps {
                 script {
-                    echo "Switching traffic to Green environment"
-                    // Change Kubernetes service selector to route traffic to Green
-                    sh 'kubectl patch service bankapp-service -p "{\"spec\": {\"selector\": {\"app\": \"bankapp\", \"version\": \"green\"}}}" -n ${KUBE_NAMESPACE}'
+                    echo "Switching traffic to Green environment "
+                    // Use Kubernetes `kubectl` to switch traffic to Green environment
+                    withKubeConfig(
+                        caCertificate: '',  // Specify the CA certificate if needed
+                        clusterName: 'eks-spot-cluster',  // The name of your EKS cluster
+                        contextName: '',  // Optionally specify a Kubernetes context name
+                        credentialsId: 'k8-token',  // ID of the Kubernetes credentials stored in Jenkins
+                        namespace: KUBE_NAMESPACE,  // Set namespace for Kubernetes resources
+                        restrictKubeConfigAccess: false,  // Set to false to allow unrestricted access
+                        serverUrl: KUBE_SERVER_URL  // Kubernetes server URL (EKS endpoint)
+                    ) {
+                        // Change Kubernetes service selector to route traffic to Green
+                        sh 'kubectl patch service my-app -p "{\"spec\": {\"selector\": {\"app\": \"my-app\", \"environment\": \"green\"}}}"'
+                    }
                 }
             }
         }
@@ -142,17 +156,23 @@ pipeline {
                 script {
                     echo "Rolling back to Blue environment"
                     // Rollback to the Blue version by redeploying Blue
-                    sh 'kubectl apply -f blue-deployment.yaml -n ${KUBE_NAMESPACE}'
-                    // Switch traffic back to the Blue environment
-                    sh 'kubectl patch service app-service -p "{\"spec\": {\"selector\": {\"app\": \"my-app\", \"version\": \"blue\"}}}" -n ${KUBE_NAMESPACE}'
+                    withKubeConfig(
+                        caCertificate: '',  // Specify the CA certificate if needed
+                        clusterName: 'eks-spot-cluster',  // The name of your EKS cluster
+                        contextName: '',  // Optionally specify a Kubernetes context name
+                        credentialsId: 'k8-token',  // ID of the Kubernetes credentials stored in Jenkins
+                        namespace: KUBE_NAMESPACE,  // Set namespace for Kubernetes resources
+                        restrictKubeConfigAccess: false,  // Set to false to allow unrestricted access
+                        serverUrl: KUBE_SERVER_URL  // Kubernetes server URL (EKS endpoint)
+                    ) {
+                        echo "Rolling back to Blue environment"
+                        // Rollback to Blue by redeploying the Blue YAML configuration
+                        sh 'kubectl apply -f blue-deployment.yml -n ${KUBE_NAMESPACE}'
+                        // Switch traffic back to Blue
+                        sh 'kubectl patch service my-app -p "{\"spec\": {\"selector\": {\"app\": \"my-app\", \"environment\": \"blue\"}}}" -n ${KUBE_NAMESPACE}'
+                    }
                 }
             }
         }
-
-
-
-
     }
-
-
 }

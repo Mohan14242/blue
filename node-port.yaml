@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: my-app-green-service
+  name: my-node-port
   labels:
     app: my-app
     environment: green
