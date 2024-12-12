@@ -6,7 +6,7 @@ metadata:
     app: my-app
     environment: green
 spec:
-  replicas: 3
+  replicas: 
   selector:
     matchLabels:
       app: my-app
