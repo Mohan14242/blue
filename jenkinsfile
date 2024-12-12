@@ -122,7 +122,7 @@ pipeline {
                             serverUrl: KUBE_SERVER_URL  // Kubernetes server URL (EKS endpoint)
                         ) {
                             // Change Kubernetes service selector to route traffic to Green
-                            sh 'kubectl patch service my-app -p "{\"spec\": {\"selector\": {\"app\": \"my-app\", \"environment\": \"green\"}}}"'
+                            sh 'kubectl patch service my-app -p "{\"spec\": {\"selector\": {\"app\": \"my-app\", \"environment\": \"green\"}}} -n ${KUBE_NAMESPACE}"'
                         }
                     }
                 }
