@@ -52,8 +52,7 @@ pipeline {
             steps {
                 script {
                     // Push the Docker image to Docker registry
-                    docker.withRegistry('https://registry.hub.docker.com', 'docker_credentials') {  
-                            docker.image("mohan14242/blue-green:${params.APP_VERSION}").push()
+                    sh """docker push docker.io/mohan14242/blue-green:${params.APP_VERSION}"""
                         
                     }
                 }
