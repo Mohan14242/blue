@@ -7,7 +7,6 @@ pipeline {
         booleanParam(name: 'ROLLBACK_ENABLED', defaultValue: true, description: 'Enable rollback on failure?')
     }
     environment {
-        APP_VERSION = ""
         KUBE_NAMESPACE = 'dev'  // Set Kubernetes namespace if not already defined
         KUBE_SERVER_URL = 'https://DDA40494B0CB1765ACFA939C48DE4F1E.sk1.us-east-1.eks.amazonaws.com'  // Your EKS server URL
     }
@@ -23,29 +22,9 @@ pipeline {
                     // Clone the repository into the 'source' directory
                     dir('source') {
                         // Clean up the directory if it already exists
-                        
+                        sh 'rm -rf .'
                         // Clone the repository from GitHub
                         git branch: 'master', url: "https://github.com/Mohan14242/blue.git"
-                    }
-                }
-            }
-        }
-        stage('Fetch Version from Tags') {
-            steps {
-                script {
-                    // Fetch the latest Git tag inside 'source' directory
-                    dir('source') {
-                        def version = sh(
-                            script: """
-                            git fetch --tags && \
-                            git describe --tags \$(git rev-list --tags --max-count=1)
-                            """,
-                            returnStdout: true
-                        ).trim()
-
-                        // Set the application version
-                        env.APP_VERSION = version
-                        echo "Application Version: ${env.APP_VERSION}"
                     }
                 }
             }
@@ -56,7 +35,7 @@ pipeline {
                     // Build the Docker image inside the 'source' directory
                     dir('source') {
                         sh """
-                        docker build -t blue-green:${env.APP_VERSION} .
+                        docker build -t blue-green:${params.APP_VERSION} .
                         """
                     }
                 }
