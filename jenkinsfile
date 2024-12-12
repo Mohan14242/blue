@@ -34,6 +34,7 @@ pipeline {
                     // Build the Docker image inside the 'source' directory
                     dir('source') {
                         sh """
+                        ls -l
                          docker build -t blue-green:${params.APP_VERSION} .
                         """
                     }
