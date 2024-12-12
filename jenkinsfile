@@ -48,16 +48,16 @@ pipeline {
                 }
             }
         }
-        stage('Trivy Scan') {
-            steps {
-                script {
-                    // Perform Trivy scan on the source code inside 'source' directory
-                    dir('source') {
-                        sh 'trivy fs . > trivy.txt'
-                    }
-                }
-            }
-        }
+        // stage('Trivy Scan') {
+        //     steps {
+        //         script {
+        //             // Perform Trivy scan on the source code inside 'source' directory
+        //             dir('source') {
+        //                 sh 'trivy fs . > trivy.txt'
+        //             }
+        //         }
+        //     }
+        // }
         stage('Docker Build') {
             steps {
                 script {
@@ -70,11 +70,11 @@ pipeline {
                 }
             }
         }
-        stage("perform the trivy image scanning "){
-            steps{
-                sh'trivy image mohan:4.0 > trivyimage.txt'
-            }
-        }
+        // stage("perform the trivy image scanning "){
+        //     steps{
+        //         sh'trivy image mohan:4.0 > trivyimage.txt'
+        //     }
+        // }
         stage('Deploy to Blue Environment') {
             steps {
                 script {
