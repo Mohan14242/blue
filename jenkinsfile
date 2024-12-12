@@ -1,0 +1,158 @@
+pipeline {
+    agent any
+    parameters {
+        string(name: 'APP_VERSION', defaultValue: '1.0.0', description: 'Version to deploy')
+        string(name: 'ENVIRONMENT', defaultValue: 'green', description: 'Deployment environment (blue or green)')
+        booleanParam(name: 'SWITCH_TRAFFIC', defaultValue: true, description: 'Switch traffic to new environment?')
+        booleanParam(name: 'ROLLBACK_ENABLED', defaultValue: true, description: 'Enable rollback on failure?')
+    }
+    environment {
+        APP_VERSION = ""
+    }
+    stages {
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+        stage('Clone Repository') {
+            steps {
+                script {
+                    // Clone the repository into the 'source' directory
+                    dir('source') {
+                        // Clean up the directory if it already exists
+                        sh 'rm -rf .'
+                        // Clone the repository from GitHub
+                        git branch: 'main', url: "https://github.com/mohansourcecode/python1.git"
+                    }
+                }
+            }
+        }
+        stage('Fetch Version from Tags') {
+            steps {
+                script {
+                    // Fetch the latest Git tag inside 'source' directory
+                    dir('source') {
+                        def version = sh(
+                            script: """
+                            git fetch --tags && \
+                            git describe --tags \$(git rev-list --tags --max-count=1)
+                            """,
+                            returnStdout: true
+                        ).trim()
+
+                        // Set the application version
+                        env.APP_VERSION = version
+                        echo "Application Version: ${env.APP_VERSION}"
+                    }
+                }
+            }
+        }
+        stage('Trivy Scan') {
+            steps {
+                script {
+                    // Perform Trivy scan on the source code inside 'source' directory
+                    dir('source') {
+                        sh 'trivy fs . > trivy.txt'
+                    }
+                }
+            }
+        }
+        stage('Docker Build') {
+            steps {
+                script {
+                    // Build the Docker image inside the 'source' directory
+                    dir('source') {
+                        sh """
+                        docker build -t your-image-name:${env.APP_VERSION} .
+                        """
+                    }
+                }
+            }
+        }
+        stage("perform the trivy image scanning "){
+            steps{
+                sh'trivy image mohan:4.0 > trivyimage.txt'
+            }
+        }
+        stage('Deploy to Blue Environment') {
+            steps {
+                script {
+                    if (params.ENVIRONMENT == 'blue') {
+                        echo "Deploying to Blue Environment with version ${params.APP_VERSION}"
+                        // Deploy to Blue (assuming Blue is the current version)
+                        sh 'kubectl apply -f blue-deployment.yaml -n ${KUBE_NAMESPACE}'
+                    }
+                }
+            }
+        }
+        stage('Deploy to Green Environment') {
+            steps {
+                script {
+                    if (params.ENVIRONMENT == 'green') {
+                        echo "Deploying to Green Environment with version ${params.APP_VERSION}"
+                        // Deploy to Green (new version)
+                        sh 'kubectl apply -f green-deployment.yaml -n ${KUBE_NAMESPACE}'
+                    }
+                }
+            }
+        }
+        stage('Tester Test Green Environment') {
+            steps {
+                script {
+                    if (params.ENVIRONMENT == 'green') {
+                        echo "Waiting for tester to test the Green environment application."
+                        // Prompt tester to manually test the Green environment
+                        input message: 'Tester, please verify the application in Green environment. Approve to continue.',
+                              ok: 'Approve',
+                              parameters: [booleanParam(defaultValue: false, description: 'Tested successfully?', name: 'tester_tested')]
+                    }
+                }
+            }
+        }
+        stage('Switch Traffic to Green') {
+            when {
+                expression { return params.SWITCH_TRAFFIC && params.tester_tested }
+            }
+            steps {
+                script {
+                    echo "Switching traffic to Green environment"
+                    // Change Kubernetes service selector to route traffic to Green
+                    sh 'kubectl patch service bankapp-service -p "{\"spec\": {\"selector\": {\"app\": \"bankapp\", \"version\": \"green\"}}}" -n ${KUBE_NAMESPACE}'
+                }
+            }
+        }
+        stage('Bug Detected - Rollback') {
+            when {
+                expression { return !params.tester_tested }
+            }
+            steps {
+                script {
+                    echo "Bug detected in the Green environment, requesting rollback."
+                    input message: 'A bug was found in Green environment. Manager, please approve to rollback to Blue.',
+                          parameters: [booleanParam(defaultValue: false, description: 'Manager Approval to Rollback?', name: 'manager_approval')]
+                }
+            }
+        }
+        stage('Rollback to Blue Environment') {
+            when {
+                expression { return params.manager_approval }
+            }
+            steps {
+                script {
+                    echo "Rolling back to Blue environment"
+                    // Rollback to the Blue version by redeploying Blue
+                    sh 'kubectl apply -f blue-deployment.yaml -n ${KUBE_NAMESPACE}'
+                    // Switch traffic back to the Blue environment
+                    sh 'kubectl patch service app-service -p "{\"spec\": {\"selector\": {\"app\": \"my-app\", \"version\": \"blue\"}}}" -n ${KUBE_NAMESPACE}'
+                }
+            }
+        }
+
+
+
+
+    }
+
+
+}
