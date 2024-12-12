@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: blue-green:1.1.0
+        image: mohan14242/blue-green:1.1.0
         ports:
         - containerPort: 80
         readinessProbe:
