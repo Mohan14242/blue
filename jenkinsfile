@@ -22,7 +22,6 @@ pipeline {
                     // Clone the repository into the 'source' directory
                     dir('source') {
                         // Clean up the directory if it already exists
-                        sh 'rm -rf .'
                         // Clone the repository from GitHub
                         git branch: 'master', url: "https://github.com/Mohan14242/blue.git"
                     }
