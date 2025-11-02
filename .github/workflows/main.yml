@@ -1,21 +1,20 @@
-name: Manual Trigger Example
+name: Deploy Pipeline
 
 on:
   workflow_dispatch:
-    inputs:
-      environment:
-        description: "Select environment"
-        required: true
-        default: "dev"
-      version:
-        description: "Version number (optional)"
-        required: false
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Show inputs
-        run: |
-          echo "Deploying to ${{ github.event.inputs.environment }}"
-          echo "Version: ${{ github.event.inputs.version }}"
+      - name: Build app
+        run: echo "Building..."
+
+  deploy-to-prod:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: production        # <-- this triggers the approval gate
+    steps:
+      - name: Deploy to Production
+        run: echo "Deploying to production..."
