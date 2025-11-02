@@ -1,20 +1,18 @@
-name: Deploy Pipeline
+name: Manual Deploy
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy"
+        required: true
+        default: "staging"
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Build app
-        run: echo "Building..."
-
-  deploy-to-prod:
-    needs: build
+  deploy:
     runs-on: ubuntu-latest
     environment:
-      name: production        # <-- this triggers the approval gate
+      name: ${{ inputs.environment }}
     steps:
-      - name: Deploy to Production
-        run: echo "Deploying to production..."
+      - name: Deploy app
+        run: echo "Deploying to ${{ inputs.environment }}"
