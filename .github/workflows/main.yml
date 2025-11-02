@@ -1,18 +1,40 @@
-name: Manual Deploy
+name: CI/CD Pipeline
 
 on:
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: "Environment to deploy"
-        required: true
-        default: "staging"
+  push:
+    branches: [ main ]
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ inputs.environment }}
     steps:
-      - name: Deploy app
-        run: echo "Deploying to ${{ inputs.environment }}"
+      - uses: actions/checkout@v4
+      - name: Build App
+        run: echo "Building..."
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Tests
+        run: echo "Testing..."
+
+  approval:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Manual Approval
+        uses: trstringer/manual-approval@v1
+        with:
+          approvers: mohan, devops-lead      # GitHub usernames
+          minimum-approvals: 1
+          issue-title: "Approval required for production deploy"
+          issue-body: "Approve this to continue deployment."
+          exclude-workflow-initiator: false
+
+  deploy:
+    needs: approval
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Production
+        run: echo "🚀 Deploying to production..."
